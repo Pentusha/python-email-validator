@@ -348,32 +348,43 @@ def validate_email_local_part(local, allow_smtputf8=True, allow_empty_local=Fals
             "smtputf8": False,
         }
 
-    else:
-        # The local part failed the ASCII check. Now try the extended internationalized requirements.
-        m = re.match(DOT_ATOM_TEXT_UTF8 + "\\Z", local)
-        if not m:
+    # The local part failed the ASCII check. Now try the extended internationalized requirements.
+    m = re.match(DOT_ATOM_TEXT_UTF8 + "\\Z", local)
+    if not m:
             # It's not a valid internationalized address either. Report which characters were not valid.
-            bad_chars = ', '.join(sorted(set(
-                c for c in local if not re.match(u"[" + (ATEXT if not allow_smtputf8 else ATEXT_UTF8) + u"]", c)
-            )))
-            raise EmailSyntaxError("The email address contains invalid characters before the @-sign: %s." % bad_chars)
+        bad_chars = ', '.join(
+            sorted(
+                {
+                    c
+                    for c in local
+                    if not re.match(
+                        u"["
+                        + (ATEXT if not allow_smtputf8 else ATEXT_UTF8)
+                        + u"]",
+                        c,
+                    )
+                }
+            )
+        )
 
-        # It would be valid if internationalized characters were allowed by the caller.
-        if not allow_smtputf8:
-            raise EmailSyntaxError("Internationalized characters before the @-sign are not supported.")
+        raise EmailSyntaxError("The email address contains invalid characters before the @-sign: %s." % bad_chars)
 
-        # It's valid.
+    # It would be valid if internationalized characters were allowed by the caller.
+    if not allow_smtputf8:
+        raise EmailSyntaxError("Internationalized characters before the @-sign are not supported.")
 
-        # RFC 6532 section 3.1 also says that Unicode NFC normalization should be applied,
-        # so we'll return the normalized local part in the return value.
-        local = unicodedata.normalize("NFC", local)
+    # It's valid.
 
-        # Flag that SMTPUTF8 will be required for deliverability.
-        return {
-            "local_part": local,
-            "ascii_local_part": None,  # no ASCII form is possible
-            "smtputf8": True,
-        }
+    # RFC 6532 section 3.1 also says that Unicode NFC normalization should be applied,
+    # so we'll return the normalized local part in the return value.
+    local = unicodedata.normalize("NFC", local)
+
+    # Flag that SMTPUTF8 will be required for deliverability.
+    return {
+        "local_part": local,
+        "ascii_local_part": None,  # no ASCII form is possible
+        "smtputf8": True,
+    }
 
 
 def validate_email_domain_part(domain, test_environment=False):
@@ -582,9 +593,7 @@ def main():
     import json
 
     def __utf8_input_shim(input_str):
-        if sys.version_info < (3,):
-            return input_str.decode("utf-8")
-        return input_str
+        return input_str.decode("utf-8") if sys.version_info < (3,) else input_str
 
     def __utf8_output_shim(output_str):
         if sys.version_info < (3,):
